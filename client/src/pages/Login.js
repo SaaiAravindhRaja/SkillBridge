@@ -24,7 +24,7 @@ const Login = () => {
     }
 
     setLoading(true);
-    
+
     // Simulate Google OAuth response
     const mockGoogleData = {
       googleId: `demo_${Date.now()}`,
@@ -35,13 +35,13 @@ const Login = () => {
     };
 
     const result = await login(mockGoogleData, userType, additionalInfo);
-    
+
     if (result.success) {
       navigate('/');
     } else {
       alert(result.error);
     }
-    
+
     setLoading(false);
   };
 
@@ -60,7 +60,7 @@ const Login = () => {
           <p style={{ textAlign: 'center', marginBottom: '32px', color: 'rgba(45, 55, 72, 0.7)' }}>
             Connecting students with expert tutors for academic excellence
           </p>
-          
+
           <div style={{ marginBottom: '24px' }}>
             <h3 style={{ marginBottom: '16px', color: 'rgba(45, 55, 72, 0.9)' }}>I am joining as a:</h3>
             <div style={{ display: 'flex', gap: '16px' }}>
@@ -101,7 +101,7 @@ const Login = () => {
         <h2 style={{ marginBottom: '24px', color: 'rgba(45, 55, 72, 0.9)' }}>
           {userType === 'kid' ? 'Student Profile Setup' : 'Tutor Profile Setup'}
         </h2>
-        
+
         <form onSubmit={handleAdditionalInfoSubmit}>
           {userType === 'kid' ? (
             <>
@@ -111,7 +111,7 @@ const Login = () => {
                   type="text"
                   required
                   value={additionalInfo.school || ''}
-                  onChange={(e) => setAdditionalInfo({...additionalInfo, school: e.target.value})}
+                  onChange={(e) => setAdditionalInfo({ ...additionalInfo, school: e.target.value })}
                 />
               </div>
               <div className="form-group">
@@ -119,7 +119,7 @@ const Login = () => {
                 <select
                   required
                   value={additionalInfo.grade || ''}
-                  onChange={(e) => setAdditionalInfo({...additionalInfo, grade: e.target.value})}
+                  onChange={(e) => setAdditionalInfo({ ...additionalInfo, grade: e.target.value })}
                 >
                   <option value="">Select Grade</option>
                   {[...Array(12)].map((_, i) => (
@@ -133,7 +133,7 @@ const Login = () => {
                   type="email"
                   placeholder="guardian@example.com"
                   value={additionalInfo.parentContact || ''}
-                  onChange={(e) => setAdditionalInfo({...additionalInfo, parentContact: e.target.value})}
+                  onChange={(e) => setAdditionalInfo({ ...additionalInfo, parentContact: e.target.value })}
                 />
               </div>
             </>
@@ -145,7 +145,7 @@ const Login = () => {
                   type="text"
                   required
                   value={additionalInfo.university || ''}
-                  onChange={(e) => setAdditionalInfo({...additionalInfo, university: e.target.value})}
+                  onChange={(e) => setAdditionalInfo({ ...additionalInfo, university: e.target.value })}
                 />
               </div>
               <div className="form-group">
@@ -153,7 +153,7 @@ const Login = () => {
                 <select
                   required
                   value={additionalInfo.year || ''}
-                  onChange={(e) => setAdditionalInfo({...additionalInfo, year: e.target.value})}
+                  onChange={(e) => setAdditionalInfo({ ...additionalInfo, year: e.target.value })}
                 >
                   <option value="">Select Year</option>
                   <option value="High School">High School</option>
@@ -166,29 +166,32 @@ const Login = () => {
               </div>
               <div className="form-group">
                 <label>Areas of Expertise</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                  {['Math', 'Science', 'English', 'History', 'Computer Science', 'Other'].map(subject => (
-                    <label key={subject} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <input
-                        type="checkbox"
-                        checked={(additionalInfo.subjects || []).includes(subject)}
-                        onChange={(e) => {
-                          const subjects = additionalInfo.subjects || [];
-                          if (e.target.checked) {
-                            setAdditionalInfo({...additionalInfo, subjects: [...subjects, subject]});
-                          } else {
-                            setAdditionalInfo({...additionalInfo, subjects: subjects.filter(s => s !== subject)});
-                          }
-                        }}
-                      />
-                      {subject}
-                    </label>
-                  ))}
+                <div className="subjects-grid">
+                  {['Math', 'Science', 'English', 'History', 'Computer Science', 'Other'].map(subject => {
+                    const selected = (additionalInfo.subjects || []).includes(subject);
+                    return (
+                      <label key={subject} className={`subject-pill ${selected ? 'selected' : ''}`}>
+                        {/* Keep a hidden checkbox for accessibility & form semantics */}
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={(e) => {
+                            const subjects = additionalInfo.subjects || [];
+                            const next = e.target.checked
+                              ? [...subjects, subject]
+                              : subjects.filter(s => s !== subject);
+                            setAdditionalInfo({ ...additionalInfo, subjects: next });
+                          }}
+                        />
+                        {subject}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             </>
           )}
-          
+
           <div style={{ display: 'flex', gap: '16px', marginTop: '24px' }}>
             <button
               type="button"

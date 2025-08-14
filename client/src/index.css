@@ -137,9 +137,13 @@ body::before {
   letter-spacing: 0.5px;
 }
 
-.form-group input,
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="number"],
+.form-group input[type="password"],
 .form-group select,
 .form-group textarea {
+
   width: 100%;
   padding: 16px 20px;
   background: rgba(255, 255, 255, 0.2);
@@ -150,6 +154,17 @@ body::before {
   font-size: 16px;
   color: #2d3748;
   transition: all 0.3s ease;
+}
+
+.form-group input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .form-group input::placeholder,
@@ -378,4 +393,44 @@ html {
 
 .request-item p {
   color: rgba(45, 55, 72, 0.8) !important;
+}
+
+/* Area of Expertise design */
+.subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.subject-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+
+.subject-pill:hover { transform: translateY(-1px); }
+
+.subject-pill.selected {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border-color: rgba(255,255,255,0.4);
+  box-shadow: 0 6px 18px rgba(102,126,234,.35);
+}
+
+.subject-pill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
