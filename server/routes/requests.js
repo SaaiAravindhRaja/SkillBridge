@@ -1,5 +1,5 @@
 const express = require('express');
-const HelpRequest = require('../models/HelpRequest');
+const { HelpRequest, User } = require('../models');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
@@ -12,7 +12,7 @@ router.post('/', auth, async (req, res) => {
     
     const { subject, type, description, preferredTime } = req.body;
     
-    const helpRequest = new HelpRequest({
+    const helpRequest = await HelpRequest.create({
       kidId: req.user.userId,
       subject,
       type,
@@ -20,10 +20,15 @@ router.post('/', auth, async (req, res) => {
       preferredTime: new Date(preferredTime)
     });
     
-    await helpRequest.save();
-    await helpRequest.populate('kidId', 'name grade school');
+    const requestWithKid = await HelpRequest.findByPk(helpRequest.id, {
+      include: [{
+        model: User,
+        as: 'kid',
+        attributes: ['name', 'grade', 'school']
+      }]
+    });
     
-    res.status(201).json(helpRequest);
+    res.status(201).json(requestWithKid);
   } catch (error) {
     console.error('Create request error:', error);
     res.status(500).json({ error: 'Failed to create help request' });
@@ -37,9 +42,15 @@ router.get('/available', auth, async (req, res) => {
       return res.status(403).json({ error: 'Only volunteers can view available requests' });
     }
     
-    const requests = await HelpRequest.find({ status: 'pending' })
-      .populate('kidId', 'name grade school')
-      .sort({ createdAt: -1 });
+    const requests = await HelpRequest.findAll({
+      where: { status: 'pending' },
+      include: [{
+        model: User,
+        as: 'kid',
+        attributes: ['name', 'grade', 'school']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
     
     res.json(requests);
   } catch (error) {
@@ -55,18 +66,24 @@ router.post('/:id/accept', auth, async (req, res) => {
       return res.status(403).json({ error: 'Only volunteers can accept requests' });
     }
     
-    const request = await HelpRequest.findById(req.params.id);
+    const request = await HelpRequest.findByPk(req.params.id);
     if (!request || request.status !== 'pending') {
       return res.status(404).json({ error: 'Request not found or already accepted' });
     }
     
-    request.status = 'accepted';
-    request.volunteerId = req.user.userId;
-    await request.save();
+    await request.update({
+      status: 'accepted',
+      volunteerId: req.user.userId
+    });
     
-    await request.populate(['kidId', 'volunteerId']);
+    const updatedRequest = await HelpRequest.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'kid', attributes: ['name', 'grade', 'school'] },
+        { model: User, as: 'volunteer', attributes: ['name', 'university'] }
+      ]
+    });
     
-    res.json(request);
+    res.json(updatedRequest);
   } catch (error) {
     console.error('Accept request error:', error);
     res.status(500).json({ error: 'Failed to accept request' });
@@ -79,13 +96,25 @@ router.get('/my', auth, async (req, res) => {
     let requests;
     
     if (req.user.userType === 'kid') {
-      requests = await HelpRequest.find({ kidId: req.user.userId })
-        .populate('volunteerId', 'name university')
-        .sort({ createdAt: -1 });
+      requests = await HelpRequest.findAll({
+        where: { kidId: req.user.userId },
+        include: [{
+          model: User,
+          as: 'volunteer',
+          attributes: ['name', 'university']
+        }],
+        order: [['createdAt', 'DESC']]
+      });
     } else {
-      requests = await HelpRequest.find({ volunteerId: req.user.userId })
-        .populate('kidId', 'name grade school')
-        .sort({ createdAt: -1 });
+      requests = await HelpRequest.findAll({
+        where: { volunteerId: req.user.userId },
+        include: [{
+          model: User,
+          as: 'kid',
+          attributes: ['name', 'grade', 'school']
+        }],
+        order: [['createdAt', 'DESC']]
+      });
     }
     
     res.json(requests);

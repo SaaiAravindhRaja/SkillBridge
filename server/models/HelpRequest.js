@@ -1,44 +1,56 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-const helpRequestSchema = new mongoose.Schema({
+const HelpRequest = sequelize.define('HelpRequest', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   kidId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   },
   subject: {
-    type: String,
-    required: true,
-    enum: ['Math', 'Science', 'English', 'History', 'Computer Science', 'Other']
+    type: DataTypes.ENUM('Math', 'Science', 'English', 'History', 'Computer Science', 'Other'),
+    allowNull: false
   },
   type: {
-    type: String,
-    required: true,
-    enum: ['Homework', 'Concept Understanding', 'Test Prep', 'General Help']
+    type: DataTypes.ENUM('Homework', 'Concept Understanding', 'Test Prep', 'General Help'),
+    allowNull: false
   },
   description: {
-    type: String,
-    required: true
+    type: DataTypes.TEXT,
+    allowNull: false
   },
   preferredTime: {
-    type: Date,
-    required: true
+    type: DataTypes.DATE,
+    allowNull: false
   },
   status: {
-    type: String,
-    enum: ['pending', 'accepted', 'completed', 'cancelled'],
-    default: 'pending'
+    type: DataTypes.ENUM('pending', 'accepted', 'completed', 'cancelled'),
+    defaultValue: 'pending'
   },
   volunteerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    type: DataTypes.INTEGER,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   },
   sessionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Session'
+    type: DataTypes.INTEGER,
+    references: {
+      model: 'Sessions',
+      key: 'id'
+    }
   }
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('HelpRequest', helpRequestSchema);
+module.exports = HelpRequest;
