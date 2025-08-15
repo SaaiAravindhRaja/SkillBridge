@@ -1,58 +1,54 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-const sessionSchema = new mongoose.Schema({
+const Session = sequelize.define('Session', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   requestId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'HelpRequest',
-    required: true
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'HelpRequests',
+      key: 'id'
+    }
   },
   kidId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   },
   volunteerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   },
   scheduledTime: {
-    type: Date,
-    required: true
+    type: DataTypes.DATE,
+    allowNull: false
   },
   status: {
-    type: String,
-    enum: ['scheduled', 'active', 'completed', 'cancelled'],
-    default: 'scheduled'
+    type: DataTypes.ENUM('scheduled', 'active', 'completed', 'cancelled'),
+    defaultValue: 'scheduled'
   },
-  messages: [{
-    senderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    message: {
-      type: String,
-      required: true
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now
-    },
-    type: {
-      type: String,
-      enum: ['text', 'image'],
-      default: 'text'
-    }
-  }],
+  messages: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  },
   feedback: {
-    kidRating: Number,
-    volunteerRating: Number,
-    kidFeedback: String,
-    volunteerFeedback: String
+    type: DataTypes.JSON,
+    defaultValue: {}
   }
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('Session', sessionSchema);
+module.exports = Session;
