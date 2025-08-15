@@ -14,7 +14,8 @@
     "firebase-admin": "^11.11.0",
     "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
-    "mongoose": "^7.5.0"
+    "pg": "^8.11.3",
+    "sequelize": "^6.35.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
