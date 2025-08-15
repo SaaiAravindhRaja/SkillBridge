@@ -1,6 +1,5 @@
 const express = require('express');
-const Session = require('../models/Session');
-const HelpRequest = require('../models/HelpRequest');
+const { Session, HelpRequest, User } = require('../models');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
@@ -9,33 +8,35 @@ router.post('/', auth, async (req, res) => {
   try {
     const { requestId } = req.body;
     
-    const request = await HelpRequest.findById(requestId);
+    const request = await HelpRequest.findByPk(requestId);
     if (!request || request.status !== 'accepted') {
       return res.status(404).json({ error: 'Request not found or not accepted' });
     }
     
     // Check if user is involved in this request
-    if (request.kidId.toString() !== req.user.userId && 
-        request.volunteerId.toString() !== req.user.userId) {
+    if (request.kidId !== req.user.userId && 
+        request.volunteerId !== req.user.userId) {
       return res.status(403).json({ error: 'Not authorized for this session' });
     }
     
-    const session = new Session({
-      requestId: request._id,
+    const session = await Session.create({
+      requestId: request.id,
       kidId: request.kidId,
       volunteerId: request.volunteerId,
       scheduledTime: request.preferredTime
     });
     
-    await session.save();
-    
     // Update request with session ID
-    request.sessionId = session._id;
-    await request.save();
+    await request.update({ sessionId: session.id });
     
-    await session.populate(['kidId', 'volunteerId']);
+    const sessionWithUsers = await Session.findByPk(session.id, {
+      include: [
+        { model: User, as: 'kid', attributes: ['name', 'grade', 'school'] },
+        { model: User, as: 'volunteer', attributes: ['name', 'university'] }
+      ]
+    });
     
-    res.status(201).json(session);
+    res.status(201).json(sessionWithUsers);
   } catch (error) {
     console.error('Create session error:', error);
     res.status(500).json({ error: 'Failed to create session' });
@@ -45,15 +46,19 @@ router.post('/', auth, async (req, res) => {
 // Get user's sessions
 router.get('/my', auth, async (req, res) => {
   try {
-    const query = req.user.userType === 'kid' 
+    const whereClause = req.user.userType === 'kid' 
       ? { kidId: req.user.userId }
       : { volunteerId: req.user.userId };
     
-    const sessions = await Session.find(query)
-      .populate('kidId', 'name grade school')
-      .populate('volunteerId', 'name university')
-      .populate('requestId', 'subject type description')
-      .sort({ scheduledTime: -1 });
+    const sessions = await Session.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'kid', attributes: ['name', 'grade', 'school'] },
+        { model: User, as: 'volunteer', attributes: ['name', 'university'] },
+        { model: HelpRequest, as: 'request', attributes: ['subject', 'type', 'description'] }
+      ],
+      order: [['scheduledTime', 'DESC']]
+    });
     
     res.json(sessions);
   } catch (error) {
@@ -67,27 +72,37 @@ router.post('/:id/messages', auth, async (req, res) => {
   try {
     const { message, type = 'text' } = req.body;
     
-    const session = await Session.findById(req.params.id);
+    const session = await Session.findByPk(req.params.id);
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
     
     // Check if user is part of this session
-    if (session.kidId.toString() !== req.user.userId && 
-        session.volunteerId.toString() !== req.user.userId) {
+    if (session.kidId !== req.user.userId && 
+        session.volunteerId !== req.user.userId) {
       return res.status(403).json({ error: 'Not authorized for this session' });
     }
     
-    session.messages.push({
+    const newMessage = {
       senderId: req.user.userId,
       message,
-      type
+      type,
+      timestamp: new Date()
+    };
+    
+    const currentMessages = session.messages || [];
+    currentMessages.push(newMessage);
+    
+    await session.update({ messages: currentMessages });
+    
+    const updatedSession = await Session.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'kid', attributes: ['name', 'grade', 'school'] },
+        { model: User, as: 'volunteer', attributes: ['name', 'university'] }
+      ]
     });
     
-    await session.save();
-    await session.populate(['kidId', 'volunteerId']);
-    
-    res.json(session);
+    res.json(updatedSession);
   } catch (error) {
     console.error('Add message error:', error);
     res.status(500).json({ error: 'Failed to add message' });
@@ -99,34 +114,40 @@ router.post('/:id/feedback', auth, async (req, res) => {
   try {
     const { rating, feedback } = req.body;
     
-    const session = await Session.findById(req.params.id);
+    const session = await Session.findByPk(req.params.id);
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
     
     // Check if user is part of this session
-    if (session.kidId.toString() !== req.user.userId && 
-        session.volunteerId.toString() !== req.user.userId) {
+    if (session.kidId !== req.user.userId && 
+        session.volunteerId !== req.user.userId) {
       return res.status(403).json({ error: 'Not authorized for this session' });
     }
     
+    const currentFeedback = session.feedback || {};
+    
     // Update feedback based on user type
     if (req.user.userType === 'kid') {
-      session.feedback.kidRating = rating;
-      session.feedback.kidFeedback = feedback;
+      currentFeedback.kidRating = rating;
+      currentFeedback.kidFeedback = feedback;
     } else {
-      session.feedback.volunteerRating = rating;
-      session.feedback.volunteerFeedback = feedback;
+      currentFeedback.volunteerRating = rating;
+      currentFeedback.volunteerFeedback = feedback;
     }
     
     // Mark session as completed if both have provided feedback
-    if (session.feedback.kidRating && session.feedback.volunteerRating) {
-      session.status = 'completed';
-    }
+    const status = (currentFeedback.kidRating && currentFeedback.volunteerRating) 
+      ? 'completed' 
+      : session.status;
     
-    await session.save();
+    await session.update({ 
+      feedback: currentFeedback,
+      status: status
+    });
     
-    res.json(session);
+    const updatedSession = await Session.findByPk(req.params.id);
+    res.json(updatedSession);
   } catch (error) {
     console.error('Submit feedback error:', error);
     res.status(500).json({ error: 'Failed to submit feedback' });
