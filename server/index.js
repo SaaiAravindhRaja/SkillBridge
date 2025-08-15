@@ -1,7 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
+const sequelize = require('./config/database');
 require('dotenv').config();
+
+// Import models to ensure associations are set up
+require('./models');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -15,11 +18,16 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection (fallback to local if no env var)
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/skillbridge';
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// PostgreSQL connection and sync
+sequelize.authenticate()
+  .then(() => {
+    console.log('Connected to PostgreSQL');
+    return sequelize.sync({ alter: true }); // Use alter: true for development
+  })
+  .then(() => {
+    console.log('Database synced');
+  })
+  .catch(err => console.error('Database connection error:', err));
 
 // Routes
 app.use('/api/auth', authRoutes);
