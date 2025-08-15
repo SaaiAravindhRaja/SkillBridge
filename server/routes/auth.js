@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User } = require('../models');
 const router = express.Router();
 
 // Google Auth - simplified for demo
@@ -9,7 +9,7 @@ router.post('/google', async (req, res) => {
     const { googleId, email, name, userType, additionalInfo } = req.body;
     
     // Check if user exists
-    let user = await User.findOne({ googleId });
+    let user = await User.findOne({ where: { googleId } });
     
     if (!user) {
       // Create new user
@@ -22,22 +22,21 @@ router.post('/google', async (req, res) => {
       
       // Add type-specific fields
       if (userType === 'kid') {
-        userData.school = additionalInfo.school;
-        userData.grade = additionalInfo.grade;
-        userData.parentContact = additionalInfo.parentContact;
+        userData.school = additionalInfo?.school;
+        userData.grade = additionalInfo?.grade;
+        userData.parentContact = additionalInfo?.parentContact;
       } else if (userType === 'volunteer') {
-        userData.university = additionalInfo.university;
-        userData.year = additionalInfo.year;
-        userData.subjects = additionalInfo.subjects || [];
+        userData.university = additionalInfo?.university;
+        userData.year = additionalInfo?.year;
+        userData.subjects = additionalInfo?.subjects || [];
       }
       
-      user = new User(userData);
-      await user.save();
+      user = await User.create(userData);
     }
     
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, userType: user.userType },
+      { userId: user.id, userType: user.userType },
       process.env.JWT_SECRET || 'fallback_secret',
       { expiresIn: '7d' }
     );
@@ -45,7 +44,7 @@ router.post('/google', async (req, res) => {
     res.json({
       token,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         userType: user.userType
