@@ -1,51 +1,62 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   googleId: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true
   },
   email: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true
   },
   name: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   userType: {
-    type: String,
-    enum: ['kid', 'volunteer'],
-    required: true
+    type: DataTypes.ENUM('kid', 'volunteer'),
+    allowNull: false
   },
   // Kid-specific fields
-  school: String,
-  grade: String,
-  parentContact: String,
+  school: DataTypes.STRING,
+  grade: DataTypes.STRING,
+  parentContact: DataTypes.STRING,
   
   // Volunteer-specific fields
-  university: String,
-  year: String,
-  subjects: [String], // Areas they can help with
+  university: DataTypes.STRING,
+  year: DataTypes.STRING,
+  subjects: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  },
   
   // Common fields
   isVerified: {
-    type: Boolean,
-    default: false
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   },
   rating: {
-    type: Number,
-    default: 0
+    type: DataTypes.FLOAT,
+    defaultValue: 0
   },
   totalSessions: {
-    type: Number,
-    default: 0
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
-  badges: [String]
+  badges: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  }
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = User;
