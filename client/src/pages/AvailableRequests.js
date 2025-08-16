@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../contexts/NotificationContext';
+import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 
 const AvailableRequests = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [subjectFilter, setSubjectFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const { showSuccess, showError } = useNotifications();
 
   useEffect(() => {
     fetchAvailableRequests();
@@ -22,12 +28,17 @@ const AvailableRequests = () => {
 
   const handleAcceptRequest = async (requestId) => {
     try {
+      // Accept the request
       await axios.post(`/api/requests/${requestId}/accept`);
-      alert('Request accepted! You can now help this student.');
+      
+      // Create a session for the accepted request
+      await axios.post('/api/sessions', { requestId });
+      
+      showSuccess('Request accepted! A session has been created. Check "My Sessions" to start tutoring.');
       fetchAvailableRequests(); // Refresh the list
     } catch (error) {
       console.error('Error accepting request:', error);
-      alert('Failed to accept request. It may have been taken by another volunteer.');
+      showError('Failed to accept request. It may have been taken by another volunteer.');
     }
   };
 
@@ -51,8 +62,20 @@ const AvailableRequests = () => {
     return `${Math.ceil(diffHours / 24)} days`;
   };
 
+  const filteredRequests = requests.filter(request => {
+    const matchesSearch = searchTerm === '' || 
+      request.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.kidId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.kidId.school.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesSubject = subjectFilter === 'all' || request.subject === subjectFilter;
+    const matchesType = typeFilter === 'all' || request.type === typeFilter;
+    
+    return matchesSearch && matchesSubject && matchesType;
+  });
+
   if (loading) {
-    return <div>Loading available requests...</div>;
+    return <LoadingSpinner message="Loading available requests..." />;
   }
 
   return (
@@ -62,19 +85,74 @@ const AvailableRequests = () => {
         <p style={{ color: 'rgba(45, 55, 72, 0.7)', marginBottom: '24px' }}>
           Select students to mentor based on your expertise and availability
         </p>
+
+        {/* Search and Filters */}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '2fr 1fr 1fr', 
+          gap: '16px', 
+          marginBottom: '24px' 
+        }}>
+          <div className="form-group" style={{ margin: 0 }}>
+            <input
+              type="text"
+              placeholder="Search by description, student name, or school..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ margin: 0 }}
+            />
+          </div>
+          
+          <div className="form-group" style={{ margin: 0 }}>
+            <select
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+              style={{ margin: 0 }}
+            >
+              <option value="all">All Subjects</option>
+              <option value="Math">Math</option>
+              <option value="Science">Science</option>
+              <option value="English">English</option>
+              <option value="History">History</option>
+              <option value="Computer Science">Computer Science</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          
+          <div className="form-group" style={{ margin: 0 }}>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              style={{ margin: 0 }}
+            >
+              <option value="all">All Types</option>
+              <option value="Homework">Homework</option>
+              <option value="Concept Understanding">Concept Understanding</option>
+              <option value="Test Prep">Test Prep</option>
+              <option value="General Help">General Help</option>
+            </select>
+          </div>
+        </div>
         
-        {requests.length === 0 ? (
+        {filteredRequests.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
-            <h3 style={{ marginBottom: '16px', color: 'rgba(45, 55, 72, 0.9)' }}>No mentoring opportunities available</h3>
-            <p>Check back soon for new learning requests from students!</p>
+            <h3 style={{ marginBottom: '16px', color: 'rgba(45, 55, 72, 0.9)' }}>
+              {requests.length === 0 ? 'No mentoring opportunities available' : 'No requests match your filters'}
+            </h3>
+            <p>
+              {requests.length === 0 
+                ? 'Check back soon for new learning requests from students!'
+                : 'Try adjusting your search terms or filters to see more results.'
+              }
+            </p>
           </div>
         ) : (
           <div>
             <p style={{ marginBottom: '24px', color: 'rgba(45, 55, 72, 0.8)' }}>
-              {requests.length} student{requests.length !== 1 ? 's' : ''} seeking academic support
+              {filteredRequests.length} of {requests.length} student{requests.length !== 1 ? 's' : ''} seeking academic support
             </p>
             
-            {requests.map((request) => (
+            {filteredRequests.map((request) => (
               <div key={request._id} className="request-item">
                 <div className="request-header">
                   <div>
