@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNotifications } from '../contexts/NotificationContext';
 import axios from 'axios';
 
 const RequestHelp = () => {
@@ -11,6 +12,7 @@ const RequestHelp = () => {
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotifications();
 
   const subjects = ['Math', 'Science', 'English', 'History', 'Computer Science', 'Other'];
   const types = ['Homework', 'Concept Understanding', 'Test Prep', 'General Help'];
@@ -21,11 +23,11 @@ const RequestHelp = () => {
 
     try {
       await axios.post('/api/requests', formData);
-      alert('Help request submitted successfully! A volunteer will be matched with you soon.');
+      showSuccess('Help request submitted successfully! A volunteer will be matched with you soon.');
       navigate('/');
     } catch (error) {
       console.error('Error submitting request:', error);
-      alert('Failed to submit request. Please try again.');
+      showError('Failed to submit request. Please try again.');
     } finally {
       setLoading(false);
     }
