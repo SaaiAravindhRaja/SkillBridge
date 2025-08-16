@@ -1,10 +1,11 @@
 const express = require('express');
 const { HelpRequest, User } = require('../models');
 const auth = require('../middleware/auth');
+const { helpRequestValidation } = require('../middleware/validation');
 const router = express.Router();
 
 // Create help request (kids only)
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, helpRequestValidation, async (req, res) => {
   try {
     if (req.user.userType !== 'kid') {
       return res.status(403).json({ error: 'Only kids can create help requests' });

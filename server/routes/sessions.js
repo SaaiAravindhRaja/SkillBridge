@@ -1,5 +1,5 @@
 const express = require('express');
-const { Session, HelpRequest, User } = require('../models');
+const { Session, HelpRequest, User, Message } = require('../models');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
@@ -83,29 +83,100 @@ router.post('/:id/messages', auth, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this session' });
     }
     
-    const newMessage = {
+    // Create message in database
+    const newMessage = await Message.create({
+      sessionId: req.params.id,
       senderId: req.user.userId,
       message,
-      type,
-      timestamp: new Date()
-    };
+      type
+    });
     
-    const currentMessages = session.messages || [];
-    currentMessages.push(newMessage);
-    
-    await session.update({ messages: currentMessages });
-    
-    const updatedSession = await Session.findByPk(req.params.id, {
+    // Get message with sender info
+    const messageWithSender = await Message.findByPk(newMessage.id, {
       include: [
-        { model: User, as: 'kid', attributes: ['name', 'grade', 'school'] },
-        { model: User, as: 'volunteer', attributes: ['name', 'university'] }
+        { model: User, as: 'sender', attributes: ['name', 'userType'] }
       ]
     });
     
-    res.json(updatedSession);
+    // Emit real-time message via Socket.io
+    const io = req.app.get('io');
+    io.to(`session-${req.params.id}`).emit('new-message', {
+      id: messageWithSender.id,
+      message: messageWithSender.message,
+      senderId: messageWithSender.senderId,
+      senderName: messageWithSender.sender.name,
+      senderType: messageWithSender.sender.userType,
+      timestamp: messageWithSender.createdAt,
+      type: messageWithSender.type
+    });
+    
+    res.json(messageWithSender);
   } catch (error) {
     console.error('Add message error:', error);
     res.status(500).json({ error: 'Failed to add message' });
+  }
+});
+
+// Get session messages
+router.get('/:id/messages', auth, async (req, res) => {
+  try {
+    const session = await Session.findByPk(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    // Check if user is part of this session
+    if (session.kidId !== req.user.userId && 
+        session.volunteerId !== req.user.userId) {
+      return res.status(403).json({ error: 'Not authorized for this session' });
+    }
+    
+    const messages = await Message.findAll({
+      where: { sessionId: req.params.id },
+      include: [
+        { model: User, as: 'sender', attributes: ['name', 'userType'] }
+      ],
+      order: [['createdAt', 'ASC']]
+    });
+    
+    res.json(messages);
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Update session status
+router.patch('/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['scheduled', 'active', 'completed', 'cancelled'];
+    
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    
+    const session = await Session.findByPk(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    // Check if user is part of this session
+    if (session.kidId !== req.user.userId && 
+        session.volunteerId !== req.user.userId) {
+      return res.status(403).json({ error: 'Not authorized for this session' });
+    }
+    
+    await session.update({ status });
+    
+    // Emit status update via Socket.io
+    const io = req.app.get('io');
+    io.to(`session-${req.params.id}`).emit('session-status-changed', { status });
+    
+    res.json({ message: 'Session status updated', status });
+  } catch (error) {
+    console.error('Update status error:', error);
+    res.status(500).json({ error: 'Failed to update session status' });
   }
 });
 

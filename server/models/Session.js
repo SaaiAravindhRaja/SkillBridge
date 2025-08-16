@@ -39,10 +39,7 @@ const Session = sequelize.define('Session', {
     type: DataTypes.ENUM('scheduled', 'active', 'completed', 'cancelled'),
     defaultValue: 'scheduled'
   },
-  messages: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
+
   feedback: {
     type: DataTypes.JSON,
     defaultValue: {}
