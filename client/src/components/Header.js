@@ -22,6 +22,7 @@ const Header = () => {
           {user && (
             <nav className="nav-links">
               <Link to="/">Dashboard</Link>
+              <Link to="/my-sessions">My Sessions</Link>
               
               {user.userType === 'kid' && (
                 <Link to="/request-help">Request Tutoring</Link>
@@ -31,6 +32,7 @@ const Header = () => {
                 <Link to="/available-requests">Find Students</Link>
               )}
               
+              <Link to="/profile">Profile</Link>
               <span>Hi, {user.name}!</span>
               <button onClick={handleLogout} className="btn btn-secondary">
                 Logout
