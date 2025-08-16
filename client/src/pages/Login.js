@@ -27,10 +27,10 @@ const Login = () => {
 
     // Simulate Google OAuth response
     const mockGoogleData = {
-      googleId: `demo_${Date.now()}`,
+      googleId: `demo_${userType}_${Date.now()}`,
       profileObj: {
-        email: userType === 'kid' ? 'demo.kid@example.com' : 'demo.volunteer@example.com',
-        name: userType === 'kid' ? 'Demo Kid' : 'Demo Volunteer'
+        email: userType === 'kid' ? `demo.kid.${Date.now()}@example.com` : `demo.volunteer.${Date.now()}@example.com`,
+        name: userType === 'kid' ? 'Demo Student' : 'Demo Tutor'
       }
     };
 
@@ -47,6 +47,20 @@ const Login = () => {
 
   const handleAdditionalInfoSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (userType === 'kid') {
+      if (!additionalInfo.school || !additionalInfo.grade) {
+        alert('Please fill in all required fields (School and Grade)');
+        return;
+      }
+    } else if (userType === 'volunteer') {
+      if (!additionalInfo.university || !additionalInfo.year) {
+        alert('Please fill in all required fields (University and Year)');
+        return;
+      }
+    }
+    
     handleGoogleLogin();
   };
 
