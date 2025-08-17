@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../contexts/NotificationContext';
-import axios from 'axios';
+import api from '../utils/api';
 
 const RequestHelp = () => {
   const [formData, setFormData] = useState({
@@ -22,12 +22,27 @@ const RequestHelp = () => {
     setLoading(true);
 
     try {
-      await axios.post('/api/requests', formData);
+      console.log('Submitting request with data:', formData);
+      
+      // Convert preferredTime to ISO string if needed
+      const requestData = {
+        ...formData,
+        preferredTime: new Date(formData.preferredTime).toISOString()
+      };
+      
+      console.log('Processed request data:', requestData);
+      
+      await api.post('/requests', requestData);
       showSuccess('Help request submitted successfully! A volunteer will be matched with you soon.');
       navigate('/');
     } catch (error) {
       console.error('Error submitting request:', error);
-      showError('Failed to submit request. Please try again.');
+      if (error.response?.data?.details) {
+        console.error('Validation errors:', error.response.data.details);
+        showError(`Failed to submit request: ${error.response.data.details.map(d => d.msg).join(', ')}`);
+      } else {
+        showError('Failed to submit request. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -55,8 +70,11 @@ const RequestHelp = () => {
         slotTime.setHours(hour, 0, 0, 0);
         
         if (slotTime > now) { // Only future slots
+          const isoString = slotTime.toISOString();
+          console.log('Generated time slot:', isoString);
+          
           slots.push({
-            value: slotTime.toISOString(),
+            value: isoString,
             label: slotTime.toLocaleDateString('en-US', {
               weekday: 'short',
               month: 'short',

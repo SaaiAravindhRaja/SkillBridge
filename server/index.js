@@ -1,30 +1,30 @@
-const express = require('express');
-const cors = require('cors');
-const http = require('http');
-const socketIo = require('socket.io');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const sequelize = require('./config/database');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import db from './db/index.js';
 
-// Import models to ensure associations are set up
-require('./models');
+// Import models
+import { User, HelpRequest, Session, Message } from './models/index.js';
 
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const requestRoutes = require('./routes/requests');
-const sessionRoutes = require('./routes/sessions');
+// Import routes
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
+import requestRoutes from './routes/requests.js';
+import sessionRoutes from './routes/sessions.js';
+
+// Setup ES Module __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
-});
-
 const PORT = process.env.PORT || 5001;
 
 // Security middleware
@@ -52,71 +52,25 @@ app.use('/api/auth/', authLimiter);
 
 // Middleware
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : 'http://localhost:3000',
-  credentials: true
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'], // Allow both localhost formats
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Make io accessible to routes
-app.set('io', io);
+// Initialize database by running migrations if needed
+import { createTables } from './db/migrate.js';
 
-// PostgreSQL connection and sync
-sequelize.authenticate()
-  .then(() => {
-    console.log('Connected to PostgreSQL');
-    return sequelize.sync({ alter: true }); // Use alter: true for development
-  })
-  .then(() => {
-    console.log('Database synced');
-  })
-  .catch(err => console.error('Database connection error:', err));
-
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  // Join session room
-  socket.on('join-session', (sessionId) => {
-    socket.join(`session-${sessionId}`);
-    console.log(`User ${socket.id} joined session ${sessionId}`);
-  });
-
-  // Handle new messages
-  socket.on('send-message', (data) => {
-    const { sessionId, message, senderId, senderName } = data;
-    
-    // Broadcast message to all users in the session
-    io.to(`session-${sessionId}`).emit('new-message', {
-      message,
-      senderId,
-      senderName,
-      timestamp: new Date(),
-      type: 'text'
-    });
-  });
-
-  // Handle session status updates
-  socket.on('session-status-update', (data) => {
-    const { sessionId, status } = data;
-    io.to(`session-${sessionId}`).emit('session-status-changed', { status });
-  });
-
-  // Handle typing indicators
-  socket.on('typing', (data) => {
-    const { sessionId, userName } = data;
-    socket.to(`session-${sessionId}`).emit('user-typing', { userName });
-  });
-
-  socket.on('stop-typing', (data) => {
-    const { sessionId } = data;
-    socket.to(`session-${sessionId}`).emit('user-stopped-typing');
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
+// Run database migration
+try {
+  await createTables();
+  console.log('Database tables ready');
+} catch (error) {
+  console.error('Error setting up the database:', error);
+  process.exit(1);
+}
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -124,10 +78,30 @@ app.use('/api/users', userRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/sessions', sessionRoutes);
 
+// Health check endpoints
 app.get('/', (req, res) => {
-  res.json({ message: 'SkillBridge API is running!' });
+  res.json({ message: 'SkillBridge API is running with Neon PostgreSQL!' });
 });
 
-server.listen(PORT, () => {
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    serverTime: new Date().toLocaleString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ 
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+  });
+});
+
+// Start the server
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

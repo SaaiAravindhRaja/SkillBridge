@@ -400,6 +400,26 @@ html {
   color: rgba(45, 55, 72, 0.8) !important;
 }
 
+/* WhatsApp link styling */
+.whatsapp-link {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 5px;
+  color: #25d366;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.whatsapp-link:hover {
+  color: #128c7e;
+  text-decoration: underline;
+}
+
+.whatsapp-link i {
+  margin-right: 3px;
+}
+
 /* Area of Expertise design */
 .subjects-grid {
   display: grid;

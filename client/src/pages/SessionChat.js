@@ -1,60 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useSocket } from '../contexts/SocketContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import axios from 'axios';
+import api from '../utils/api';
 
 const SessionChat = () => {
   const { sessionId } = useParams();
   const { user } = useAuth();
-  const { socket, joinSession, sendMessage, startTyping, stopTyping } = useSocket();
   const navigate = useNavigate();
   
   const [session, setSession] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [typing, setTyping] = useState('');
   const [sessionStatus, setSessionStatus] = useState('scheduled');
   
   const messagesEndRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
     fetchSession();
     fetchMessages();
     
-    if (socket) {
-      joinSession(sessionId);
-      
-      // Listen for new messages
-      socket.on('new-message', (message) => {
-        setMessages(prev => [...prev, message]);
-      });
-      
-      // Listen for session status changes
-      socket.on('session-status-changed', ({ status }) => {
-        setSessionStatus(status);
-      });
-      
-      // Listen for typing indicators
-      socket.on('user-typing', ({ userName }) => {
-        setTyping(`${userName} is typing...`);
-      });
-      
-      socket.on('user-stopped-typing', () => {
-        setTyping('');
-      });
-      
-      return () => {
-        socket.off('new-message');
-        socket.off('session-status-changed');
-        socket.off('user-typing');
-        socket.off('user-stopped-typing');
-      };
-    }
-  }, [socket, sessionId]);
+    // Set up polling for new messages
+    const messagePollingInterval = setInterval(() => {
+      fetchMessages();
+    }, 5000);
+    
+    return () => {
+      clearInterval(messagePollingInterval);
+    };
+  }, [sessionId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -62,7 +37,7 @@ const SessionChat = () => {
 
   const fetchSession = async () => {
     try {
-      const response = await axios.get(`/api/sessions/my`);
+      const response = await api.get(`/sessions/my`);
       const userSession = response.data.find(s => s.id === parseInt(sessionId));
       if (userSession) {
         setSession(userSession);
@@ -80,7 +55,7 @@ const SessionChat = () => {
 
   const fetchMessages = async () => {
     try {
-      const response = await axios.get(`/api/sessions/${sessionId}/messages`);
+      const response = await api.get(`/sessions/${sessionId}/messages`);
       setMessages(response.data);
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -92,13 +67,14 @@ const SessionChat = () => {
     if (!newMessage.trim()) return;
 
     try {
-      await axios.post(`/api/sessions/${sessionId}/messages`, {
+      await api.post(`/sessions/${sessionId}/messages`, {
         message: newMessage,
         type: 'text'
       });
       
+      // Fetch messages immediately after sending to update the UI
+      fetchMessages();
       setNewMessage('');
-      stopTyping(sessionId);
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -106,20 +82,14 @@ const SessionChat = () => {
 
   const handleInputChange = (e) => {
     setNewMessage(e.target.value);
-    
-    // Handle typing indicators
-    startTyping(sessionId);
-    
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      stopTyping(sessionId);
-    }, 1000);
   };
 
   const handleStatusChange = async (newStatus) => {
     try {
-      await axios.patch(`/api/sessions/${sessionId}/status`, { status: newStatus });
+      await api.patch(`/sessions/${sessionId}/status`, { status: newStatus });
       setSessionStatus(newStatus);
+      // Refresh session data after status change
+      fetchSession();
     } catch (error) {
       console.error('Error updating session status:', error);
     }
@@ -282,16 +252,7 @@ const SessionChat = () => {
             ))
           )}
           
-          {typing && (
-            <div style={{ 
-              fontSize: '12px', 
-              color: 'rgba(45, 55, 72, 0.6)',
-              fontStyle: 'italic',
-              padding: '8px 16px'
-            }}>
-              {typing}
-            </div>
-          )}
+          {/* Typing indicator removed */}
           
           <div ref={messagesEndRef} />
         </div>

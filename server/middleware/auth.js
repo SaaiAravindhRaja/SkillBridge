@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
 const auth = (req, res, next) => {
   try {
@@ -9,11 +9,16 @@ const auth = (req, res, next) => {
     }
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    
+    // Log the token decoding for debugging
+    console.log('Decoded token:', decoded);
+    
     req.user = decoded;
     next();
   } catch (error) {
+    console.error('Auth middleware error:', error);
     res.status(401).json({ error: 'Invalid token' });
   }
 };
 
-module.exports = auth;
+export default auth;

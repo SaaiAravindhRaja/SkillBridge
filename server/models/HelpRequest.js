@@ -1,56 +1,68 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import BaseModel from './BaseModel.js';
+import db from '../db/index.js';
 
-const HelpRequest = sequelize.define('HelpRequest', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  kidId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'Users',
-      key: 'id'
-    }
-  },
-  subject: {
-    type: DataTypes.ENUM('Math', 'Science', 'English', 'History', 'Computer Science', 'Other'),
-    allowNull: false
-  },
-  type: {
-    type: DataTypes.ENUM('Homework', 'Concept Understanding', 'Test Prep', 'General Help'),
-    allowNull: false
-  },
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: false
-  },
-  preferredTime: {
-    type: DataTypes.DATE,
-    allowNull: false
-  },
-  status: {
-    type: DataTypes.ENUM('pending', 'accepted', 'completed', 'cancelled'),
-    defaultValue: 'pending'
-  },
-  volunteerId: {
-    type: DataTypes.INTEGER,
-    references: {
-      model: 'Users',
-      key: 'id'
-    }
-  },
-  sessionId: {
-    type: DataTypes.INTEGER,
-    references: {
-      model: 'Sessions',
-      key: 'id'
-    }
+class HelpRequest extends BaseModel {
+  constructor() {
+    super('help_requests');
   }
-}, {
-  timestamps: true
-});
 
-module.exports = HelpRequest;
+  async findByKidId(kidId) {
+    return this.query(
+      `SELECT hr.*, 
+        k.name AS kid_name, 
+        v.name AS volunteer_name,
+        v.whatsapp_number AS volunteer_whatsapp_number
+      FROM ${this.table} hr
+      LEFT JOIN users k ON hr.kid_id = k.id
+      LEFT JOIN users v ON hr.volunteer_id = v.id
+      WHERE hr.kid_id = $1
+      ORDER BY hr.created_at DESC`,
+      [kidId]
+    );
+  }
+
+  async findByVolunteerId(volunteerId) {
+    return this.query(
+      `SELECT hr.*, 
+        k.name AS kid_name, 
+        k.whatsapp_number AS kid_whatsapp_number,
+        v.name AS volunteer_name
+      FROM ${this.table} hr
+      LEFT JOIN users k ON hr.kid_id = k.id
+      LEFT JOIN users v ON hr.volunteer_id = v.id
+      WHERE hr.volunteer_id = $1
+      ORDER BY hr.created_at DESC`,
+      [volunteerId]
+    );
+  }
+
+  async findAvailable() {
+    return this.query(
+      `SELECT hr.*, 
+        k.name AS kid_name, 
+        k.school AS kid_school,
+        k.grade AS kid_grade,
+        k.whatsapp_number AS kid_whatsapp_number
+      FROM ${this.table} hr
+      JOIN users k ON hr.kid_id = k.id
+      WHERE hr.status = 'pending'
+        AND hr.volunteer_id IS NULL
+      ORDER BY hr.preferred_time ASC`,
+      []
+    );
+  }
+
+  async acceptRequest(requestId, volunteerId) {
+    return db.query(
+      `UPDATE ${this.table}
+       SET volunteer_id = $1, 
+           status = 'accepted',
+           updated_at = NOW()
+       WHERE id = $2 AND status = 'pending'
+       RETURNING *`,
+      [volunteerId, requestId]
+    );
+  }
+}
+
+export default new HelpRequest();

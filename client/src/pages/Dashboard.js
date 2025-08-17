@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import axios from 'axios';
+import api from '../utils/api';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -15,7 +15,7 @@ const Dashboard = () => {
 
   const fetchMyRequests = async () => {
     try {
-      const response = await axios.get('/api/requests/my');
+      const response = await api.get('/requests/my');
       setRequests(response.data);
     } catch (error) {
       console.error('Error fetching requests:', error);
@@ -46,6 +46,18 @@ const Dashboard = () => {
       minute: '2-digit'
     });
   };
+  
+  const getWhatsAppLink = (number, name) => {
+    if (!number) return null;
+    
+    // Format WhatsApp number - remove any non-digit characters except the + at the beginning
+    const formattedNumber = number.replace(/[^\d+]/g, '').replace(/^\+/, '');
+    const message = `Hello ${name}, I'm contacting you regarding our SkillBridge tutoring session.`;
+    
+    return `https://wa.me/${formattedNumber}?text=${encodeURIComponent(message)}`;
+  };
+  
+  console.log('Dashboard requests:', requests);
 
   if (loading) {
     return <LoadingSpinner message="Loading your dashboard..." />;
@@ -127,11 +139,43 @@ const Dashboard = () => {
                 </div>
                 
                 <div className="request-meta">
-                  {user.userType === 'kid' && request.volunteerId && (
-                    <span>Volunteer: {request.volunteerId.name} • </span>
+                  {user.userType === 'kid' && request.volunteer_name && (
+                    <span>
+                      Volunteer: {request.volunteer_name} 
+                      {request.status === 'accepted' && request.volunteer_whatsapp_number && (
+                        <>
+                          {' • '}
+                          <a 
+                            href={getWhatsAppLink(request.volunteer_whatsapp_number, request.volunteer_name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="whatsapp-link"
+                          >
+                            <i className="bi bi-whatsapp"></i> WhatsApp
+                          </a>
+                        </>
+                      )}
+                      {' • '}
+                    </span>
                   )}
-                  {user.userType === 'volunteer' && request.kidId && (
-                    <span>Student: {request.kidId.name} ({request.kidId.grade}) • </span>
+                  {user.userType === 'volunteer' && request.kid_name && (
+                    <span>
+                      Student: {request.kid_name} ({request.kid_grade || 'N/A'}) 
+                      {request.status === 'accepted' && request.kid_whatsapp_number && (
+                        <>
+                          {' • '}
+                          <a 
+                            href={getWhatsAppLink(request.kid_whatsapp_number, request.kid_name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="whatsapp-link"
+                          >
+                            <i className="bi bi-whatsapp"></i> WhatsApp
+                          </a>
+                        </>
+                      )}
+                      {' • '}
+                    </span>
                   )}
                   Requested: {formatDate(request.createdAt)}
                 </div>

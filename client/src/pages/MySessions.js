@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import axios from 'axios';
+import api from '../utils/api';
 
 const MySessions = () => {
   const { user } = useAuth();
@@ -16,10 +16,17 @@ const MySessions = () => {
 
   const fetchSessions = async () => {
     try {
-      const response = await axios.get('/api/sessions/my');
+      const response = await api.get('/sessions/my');
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        setSessions([]);
+        return;
+      }
+      
       setSessions(response.data);
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      console.error('Error fetching sessions:', error.message);
+      setSessions([]); // Set to empty array on error
     } finally {
       setLoading(false);
     }
@@ -60,23 +67,54 @@ const MySessions = () => {
     });
   };
 
-  const filteredSessions = sessions.filter(session => {
+  // Normalize the session data to handle inconsistent property naming
+  const normalizedSessions = (sessions || []).map(session => {
+    if (!session) return null;
+    
+    return {
+      ...session,
+      id: session.id || `temp-${Math.random().toString(36).substring(2, 9)}`,
+      status: session.status || 'scheduled',
+      scheduled_time: session.scheduled_time || session.scheduledTime || new Date().toISOString(),
+      created_at: session.created_at || session.createdAt || new Date().toISOString(),
+      subject: session.subject || 'General Help',
+      type: session.type || 'Academic',
+      description: session.description || 'No description provided',
+      kid_name: session.kid_name || 'Unknown Student',
+      volunteer_name: session.volunteer_name || 'Unknown Tutor'
+    };
+  }).filter(Boolean); // Remove any null values
+  
+  // Monitor sessions data changes
+  useEffect(() => {
+    // Component will re-render when sessions or normalizedSessions change
+  }, [sessions, normalizedSessions]);
+  
+  const filteredSessions = normalizedSessions.filter(session => {
     if (filter === 'all') return true;
     return session.status === filter;
   });
 
   const getSessionTitle = (session) => {
-    const otherUser = user.userType === 'kid' ? session.volunteer : session.kid;
-    return `${session.request?.subject} with ${otherUser?.name}`;
+    return `${session.subject || 'Session'} - ${session.type || 'General Help'}`;
   };
 
   const getSessionSubtitle = (session) => {
-    const otherUser = user.userType === 'kid' ? session.volunteer : session.kid;
     if (user.userType === 'kid') {
-      return `Tutor: ${otherUser?.name} (${otherUser?.university})`;
+      return `Tutor: ${session.volunteer_name || 'Unknown'}`;
     } else {
-      return `Student: ${otherUser?.name} (Grade ${otherUser?.grade})`;
+      return `Student: ${session.kid_name || 'Unknown'} (${session.grade || 'N/A'})`;
     }
+  };
+  
+  const getWhatsAppLink = (number, name) => {
+    if (!number) return null;
+    
+    // Format WhatsApp number - remove any non-digit characters except the + at the beginning
+    const formattedNumber = number.replace(/[^\d+]/g, '').replace(/^\+/, '');
+    const message = `Hello ${name}, I'm contacting you regarding our SkillBridge tutoring session.`;
+    
+    return `https://wa.me/${formattedNumber}?text=${encodeURIComponent(message)}`;
   };
 
   if (loading) {
@@ -124,6 +162,11 @@ const MySessions = () => {
                 : "Accept help requests to start mentoring students!"
               }
             </p>
+            <p style={{ marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
+              {normalizedSessions.length > 0 && filter !== 'all' 
+                ? `You have ${normalizedSessions.length} session(s) with different status. Try the "All" filter to see them.` 
+                : ''}
+            </p>
             <Link 
               to={user.userType === 'kid' ? '/request-help' : '/available-requests'}
               className="btn btn-primary"
@@ -155,11 +198,44 @@ const MySessions = () => {
                 
                 <div style={{ marginBottom: '12px' }}>
                   <div style={{ fontSize: '14px', color: 'rgba(45, 55, 72, 0.7)', marginBottom: '4px' }}>
-                    <strong>Type:</strong> {session.request?.type} • 
-                    <strong> Scheduled:</strong> {formatDate(session.scheduledTime)}
+                    <strong>Type:</strong> {session.type} • 
+                    <strong> Scheduled:</strong> {formatDate(session.scheduled_time)}
+                    
+                    {/* WhatsApp Contact */}
+                    {session.status !== 'pending' && (
+                      <>
+                        {user.userType === 'kid' && session.volunteer_whatsapp_number && (
+                          <>
+                            {' • '}
+                            <a 
+                              href={getWhatsAppLink(session.volunteer_whatsapp_number, session.volunteer_name)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="whatsapp-link"
+                            >
+                              <i className="bi bi-whatsapp"></i> Contact Tutor
+                            </a>
+                          </>
+                        )}
+                        
+                        {user.userType === 'volunteer' && session.kid_whatsapp_number && (
+                          <>
+                            {' • '}
+                            <a 
+                              href={getWhatsAppLink(session.kid_whatsapp_number, session.kid_name)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="whatsapp-link"
+                            >
+                              <i className="bi bi-whatsapp"></i> Contact Student
+                            </a>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                   
-                  {session.request?.description && (
+                  {session.description && (
                     <div style={{ 
                       fontSize: '14px', 
                       color: 'rgba(45, 55, 72, 0.8)',
@@ -168,7 +244,7 @@ const MySessions = () => {
                       borderRadius: '8px',
                       marginTop: '8px'
                     }}>
-                      <strong>Topic:</strong> {session.request.description}
+                      <strong>Topic:</strong> {session.description}
                     </div>
                   )}
                 </div>
@@ -179,35 +255,17 @@ const MySessions = () => {
                   </span>
                   
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    {session.status === 'scheduled' && (
-                      <Link
-                        to={`/session/${session.id}`}
-                        className="btn btn-success"
-                        style={{ padding: '8px 16px', fontSize: '14px' }}
-                      >
-                        Join Session
-                      </Link>
-                    )}
-                    
-                    {session.status === 'active' && (
-                      <Link
-                        to={`/session/${session.id}`}
-                        className="btn btn-primary"
-                        style={{ padding: '8px 16px', fontSize: '14px' }}
-                      >
-                        Continue Session
-                      </Link>
-                    )}
-                    
-                    {session.status === 'completed' && (
-                      <Link
-                        to={`/session/${session.id}`}
-                        className="btn btn-secondary"
-                        style={{ padding: '8px 16px', fontSize: '14px' }}
-                      >
-                        View Session
-                      </Link>
-                    )}
+                    <Link
+                      to={`/session/${session.id}`}
+                      className={`btn ${session.status === 'scheduled' ? 'btn-success' : 
+                                        session.status === 'active' ? 'btn-primary' : 
+                                        'btn-secondary'}`}
+                      style={{ padding: '8px 16px', fontSize: '14px' }}
+                    >
+                      {session.status === 'scheduled' ? 'Join Session' : 
+                       session.status === 'active' ? 'Continue Session' : 
+                       'View Session'}
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -222,25 +280,25 @@ const MySessions = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4f46e5' }}>
-              {sessions.length}
+              {normalizedSessions.length}
             </div>
             <div style={{ fontSize: '14px', color: '#6b7280' }}>Total Sessions</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
-              {sessions.filter(s => s.status === 'completed').length}
+              {normalizedSessions.filter(s => s.status === 'completed').length}
             </div>
             <div style={{ fontSize: '14px', color: '#6b7280' }}>Completed</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fbbf24' }}>
-              {sessions.filter(s => s.status === 'scheduled').length}
+              {normalizedSessions.filter(s => s.status === 'scheduled').length}
             </div>
             <div style={{ fontSize: '14px', color: '#6b7280' }}>Upcoming</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>
-              {sessions.filter(s => s.status === 'active').length}
+              {normalizedSessions.filter(s => s.status === 'active').length}
             </div>
             <div style={{ fontSize: '14px', color: '#6b7280' }}>Active Now</div>
           </div>

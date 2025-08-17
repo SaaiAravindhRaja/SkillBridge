@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNotifications } from '../contexts/NotificationContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import axios from 'axios';
+import api from '../utils/api';
 
 const AvailableRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -17,7 +17,7 @@ const AvailableRequests = () => {
 
   const fetchAvailableRequests = async () => {
     try {
-      const response = await axios.get('/api/requests/available');
+      const response = await api.get('/requests/available');
       setRequests(response.data);
     } catch (error) {
       console.error('Error fetching requests:', error);
@@ -28,45 +28,67 @@ const AvailableRequests = () => {
 
   const handleAcceptRequest = async (requestId) => {
     try {
-      // Accept the request
-      await axios.post(`/api/requests/${requestId}/accept`);
+      // Accept the request - this also creates a session on the server side
+      console.log('Accepting request:', requestId);
+      const response = await api.post(`/requests/${requestId}/accept`);
+      console.log('Request accepted successfully:', response.data);
       
-      // Create a session for the accepted request
-      await axios.post('/api/sessions', { requestId });
+      // No need to create a session separately as it's done on the server
       
       showSuccess('Request accepted! A session has been created. Check "My Sessions" to start tutoring.');
       fetchAvailableRequests(); // Refresh the list
     } catch (error) {
       console.error('Error accepting request:', error);
-      showError('Failed to accept request. It may have been taken by another volunteer.');
+      const errorMsg = error.response?.data?.error || 'Failed to accept request. It may have been taken by another volunteer.';
+      showError(errorMsg);
     }
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateString) return 'Unknown date';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'Invalid date';
+    }
   };
 
   const getTimeUntil = (dateString) => {
-    const now = new Date();
-    const requestTime = new Date(dateString);
-    const diffHours = Math.ceil((requestTime - now) / (1000 * 60 * 60));
-    
-    if (diffHours < 1) return 'Less than 1 hour';
-    if (diffHours < 24) return `${diffHours} hours`;
-    return `${Math.ceil(diffHours / 24)} days`;
+    if (!dateString) return 'Unknown time';
+    try {
+      const now = new Date();
+      const requestTime = new Date(dateString);
+      const diffHours = Math.ceil((requestTime - now) / (1000 * 60 * 60));
+      
+      if (diffHours < 1) return 'Less than 1 hour';
+      if (diffHours < 24) return `${diffHours} hours`;
+      return `${Math.ceil(diffHours / 24)} days`;
+    } catch (error) {
+      console.error('Error calculating time until:', dateString, error);
+      return 'Unknown time';
+    }
   };
 
+  // Debug the request structure
+  useEffect(() => {
+    if (requests.length > 0) {
+      console.log('Request structure:', requests[0]);
+    }
+  }, [requests]);
+
   const filteredRequests = requests.filter(request => {
+    // Safe access to properties that might not exist in the structure
     const matchesSearch = searchTerm === '' || 
-      request.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.kidId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.kidId.school.toLowerCase().includes(searchTerm.toLowerCase());
+      (request.description && request.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (request.kid_name && request.kid_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (request.kid_school && request.kid_school.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesSubject = subjectFilter === 'all' || request.subject === subjectFilter;
     const matchesType = typeFilter === 'all' || request.type === typeFilter;
@@ -153,7 +175,7 @@ const AvailableRequests = () => {
             </p>
             
             {filteredRequests.map((request) => (
-              <div key={request._id} className="request-item">
+              <div key={request.id || request._id} className="request-item">
                 <div className="request-header">
                   <div>
                     <span className="request-subject">{request.subject}</span>
@@ -165,13 +187,15 @@ const AvailableRequests = () => {
                     color: '#059669',
                     fontWeight: '600'
                   }}>
-                    In {getTimeUntil(request.preferredTime)}
+                    In {getTimeUntil(request.preferred_time || request.preferredTime)}
                   </span>
                 </div>
                 
                 <div className="request-meta">
-                  Student: {request.kidId.name} ({request.kidId.grade}) from {request.kidId.school} • 
-                  Preferred time: {formatDate(request.preferredTime)}
+                  Student: {request.kid_name || 'Anonymous'} 
+                  {request.kid_grade && `(${request.kid_grade})`} 
+                  {request.kid_school && `from ${request.kid_school}`} • 
+                  Preferred time: {formatDate(request.preferred_time || request.preferredTime)}
                 </div>
                 
                 <p style={{ 
@@ -185,11 +209,11 @@ const AvailableRequests = () => {
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                    Requested {formatDate(request.createdAt)}
+                    Requested {formatDate(request.created_at || request.createdAt)}
                   </span>
                   <button
                     className="btn btn-success"
-                    onClick={() => handleAcceptRequest(request._id)}
+                    onClick={() => handleAcceptRequest(request.id || request._id)}
                   >
                     Accept & Mentor
                   </button>

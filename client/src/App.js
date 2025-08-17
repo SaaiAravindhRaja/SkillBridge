@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { SocketProvider } from './contexts/SocketContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
@@ -19,7 +18,6 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <NotificationProvider>
-          <SocketProvider>
             <Router>
               <div className="App">
                 <Header />
@@ -60,7 +58,6 @@ function App() {
                 </main>
               </div>
             </Router>
-          </SocketProvider>
         </NotificationProvider>
       </AuthProvider>
     </ErrorBoundary>

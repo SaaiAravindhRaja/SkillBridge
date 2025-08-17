@@ -1,4 +1,4 @@
-const { body, validationResult } = require('express-validator');
+import { body, validationResult } from 'express-validator';
 
 // Validation middleware
 const validate = (req, res, next) => {
@@ -12,8 +12,17 @@ const validate = (req, res, next) => {
   next();
 };
 
-// Auth validation rules
+// Registration validation rules
 const authValidation = [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('name').isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
+  body('userType').isIn(['kid', 'volunteer']).withMessage('User type must be kid or volunteer'),
+  validate
+];
+
+// Google Auth validation rules
+const googleAuthValidation = [
   body('googleId').notEmpty().withMessage('Google ID is required'),
   body('email').isEmail().withMessage('Valid email is required'),
   body('name').isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
@@ -29,7 +38,18 @@ const helpRequestValidation = [
     .withMessage('Invalid help type'),
   body('description').isLength({ min: 10, max: 1000 })
     .withMessage('Description must be 10-1000 characters'),
-  body('preferredTime').isISO8601().withMessage('Valid date/time is required'),
+  body('preferredTime')
+    .custom(value => {
+      console.log('Validating preferredTime:', value);
+      try {
+        const date = new Date(value);
+        return !isNaN(date);
+      } catch (e) {
+        console.error('Date validation error:', e);
+        return false;
+      }
+    })
+    .withMessage('Valid date/time is required'),
   validate
 ];
 
@@ -55,9 +75,10 @@ const profileUpdateValidation = [
   validate
 ];
 
-module.exports = {
+export {
   validate,
   authValidation,
+  googleAuthValidation,
   helpRequestValidation,
   messageValidation,
   profileUpdateValidation

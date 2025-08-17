@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import axios from 'axios';
+import api from '../utils/api';
 
 const Profile = () => {
   const { user } = useAuth();
@@ -18,11 +18,43 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await axios.get('/api/users/profile');
-      setProfile(response.data);
-      setFormData(response.data);
+      console.log('Fetching user profile...');
+      const response = await api.get('/users/profile');
+      console.log('Profile response:', response.data);
+      
+      // Normalize the user data
+      const profileData = response.data;
+      
+      // Fix user type property if needed
+      if (profileData.user_type && !profileData.userType) {
+        profileData.userType = profileData.user_type;
+      }
+      
+      // Make sure rating is a number or null
+      if (profileData.rating === undefined || profileData.rating === null || profileData.rating === '') {
+        profileData.rating = 0;
+      } else if (typeof profileData.rating === 'string') {
+        profileData.rating = parseFloat(profileData.rating) || 0;
+      }
+      
+      // Make sure totalSessions is a number
+      if (profileData.total_sessions !== undefined && profileData.totalSessions === undefined) {
+        profileData.totalSessions = profileData.total_sessions;
+      }
+      if (typeof profileData.totalSessions !== 'number') {
+        profileData.totalSessions = parseInt(profileData.totalSessions || '0') || 0;
+      }
+      
+      // Make sure badges is an array
+      if (!Array.isArray(profileData.badges)) {
+        profileData.badges = [];
+      }
+      
+      setProfile(profileData);
+      setFormData(profileData);
     } catch (error) {
       console.error('Error fetching profile:', error);
+      console.error('Error details:', error.response?.data || error.message);
       showError('Failed to load profile');
     } finally {
       setLoading(false);
@@ -34,7 +66,7 @@ const Profile = () => {
     setSaving(true);
 
     try {
-      const response = await axios.put('/api/users/profile', formData);
+      const response = await api.put('/users/profile', formData);
       setProfile(response.data);
       showSuccess('Profile updated successfully!');
     } catch (error) {
@@ -251,7 +283,7 @@ const Profile = () => {
               
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
-                  {profile.rating ? profile.rating.toFixed(1) : 'N/A'}
+                  {profile.rating && !isNaN(parseFloat(profile.rating)) ? parseFloat(profile.rating).toFixed(1) : 'N/A'}
                 </div>
                 <div style={{ fontSize: '14px', color: '#6b7280' }}>
                   Average Rating
